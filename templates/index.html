@@ -1,0 +1,150 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>股票学习笔记本</title>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: #0a0f1a;
+            color: #f1f5f9;
+            min-height: 100vh;
+        }
+        .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+        .header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 16px 0;
+            border-bottom: 1px solid #1e293b;
+            margin-bottom: 24px;
+        }
+        .header h1 { font-size: 24px; font-weight: 600; }
+        .nav { display: flex; gap: 24px; }
+        .nav a {
+            color: #94a3b8;
+            text-decoration: none;
+            font-size: 14px;
+            transition: color 0.2s;
+        }
+        .nav a:hover, .nav a.active { color: #f1f5f9; }
+        .grid { display: grid; grid-template-columns: 1fr 1fr; gap: 24px; }
+        .card {
+            background: #111827;
+            border-radius: 12px;
+            padding: 20px;
+        }
+        .card-title {
+            font-size: 12px;
+            color: #9ca3af;
+            margin-bottom: 16px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .stock-item {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            padding: 12px 0;
+            border-bottom: 1px solid #1e293b;
+            cursor: pointer;
+        }
+        .stock-item:last-child { border-bottom: none; }
+        .stock-item:hover { background: #1e293b; margin: 0 -12px; padding: 12px; border-radius: 8px; }
+        .stock-item:hover .view-detail { opacity: 1; }
+        .view-detail { opacity: 0; color: #60a5fa; font-size: 12px; transition: opacity 0.2s; }
+        .stock-code { font-weight: 600; font-size: 15px; }
+        .stock-name { color: #9ca3af; font-size: 13px; }
+        .stock-price { text-align: right; }
+        .stock-price .price { font-size: 18px; font-weight: 600; }
+        .stock-price .change { font-size: 12px; }
+        .change.up { color: #22c55e; }
+        .change.down { color: #ef4444; }
+        .empty { color: #9ca3af; text-align: center; padding: 40px 0; font-size: 14px; }
+        .observation-item {
+            padding: 12px 0;
+            border-bottom: 1px solid #1e293b;
+        }
+        .observation-item:last-child { border-bottom: none; }
+        .obs-header { display: flex; justify-content: space-between; margin-bottom: 6px; }
+        .obs-stock { font-weight: 600; color: #60a5fa; cursor: pointer; font-size: 15px; }
+        .obs-stock:hover { text-decoration: underline; }
+        .obs-date { color: #9ca3af; font-size: 12px; }
+        .obs-content { color: #cbd5e1; font-size: 14px; line-height: 1.6; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <h1>股票学习笔记本</h1>
+            <nav class="nav">
+                <a href="/" class="active">概览</a>
+                <a href="/learning">指标学习</a>
+                <a href="/portfolio">持仓管理</a>
+            </nav>
+        </div>
+
+        <div class="grid">
+            <div class="card">
+                <div class="card-title">持仓概览</div>
+                {% if portfolios %}
+                {% for p in portfolios %}
+                <div class="stock-item" onclick="location.href='/stock/{{ p.stock_code }}'">
+                    <div>
+                        <div class="stock-code">{{ p.stock_code }}</div>
+                        <div class="stock-name">{{ p.stock_name or '未知' }}</div>
+                    </div>
+                    <div class="stock-price">
+                        <div class="price">¥{{ "%.2f"|format(p.cost_price) }}</div>
+                        <div class="change">持 {{ p.shares }} 股</div>
+                        <div class="view-detail">查看详情 →</div>
+                    </div>
+                </div>
+                {% endfor %}
+                {% else %}
+                <div class="empty">暂无持仓<br><a href="/portfolio" style="color:#3b82f6">去添加</a></div>
+                {% endif %}
+            </div>
+
+            <div class="card">
+                <div class="card-title">自选股</div>
+                {% if watchlists %}
+                {% for w in watchlists %}
+                <div class="stock-item" onclick="location.href='/stock/{{ w.stock_code }}'">
+                    <div>
+                        <div class="stock-code">{{ w.stock_code }}</div>
+                        <div class="stock-name">{{ w.stock_name or '未知' }}</div>
+                    </div>
+                    <div class="stock-price">
+                        <div class="change">自选</div>
+                        <div class="view-detail">查看详情 →</div>
+                    </div>
+                </div>
+                {% endfor %}
+                {% else %}
+                <div class="empty">暂无自选股<br><a href="/portfolio" style="color:#3b82f6">去添加</a></div>
+                {% endif %}
+            </div>
+        </div>
+
+        <div class="card" style="margin-top: 24px;">
+            <div class="card-title">近期观察</div>
+            {% if observations %}
+            {% for obs in observations %}
+            <div class="observation-item">
+                <div class="obs-header">
+                    <a class="obs-stock" href="/stock/{{ obs.stock_code }}">{{ obs.stock_code }}</a>
+                    <span class="obs-date">{{ obs.observation_date }}</span>
+                </div>
+                <div class="obs-content">{{ obs.content }}</div>
+            </div>
+            {% endfor %}
+            {% else %}
+            <div class="empty">暂无观察记录<br>在个股页面添加观察</div>
+            {% endif %}
+        </div>
+    </div>
+</body>
+</html>

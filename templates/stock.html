@@ -1,0 +1,686 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>个股详情 - 股票学习笔记本</title>
+    <script src="https://unpkg.com/lightweight-charts@4.2.0/dist/lightweight-charts.standalone.production.js"></script>
+    <style>
+        * { margin: 0; padding: 0; box-sizing: border-box; }
+        body {
+            font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif;
+            background: #0a0f1a;
+            color: #f1f5f9;
+            min-height: 100vh;
+        }
+        .container { max-width: 1200px; margin: 0 auto; padding: 20px; }
+        .header {
+            display: flex;
+            align-items: center;
+            justify-content: space-between;
+            padding: 16px 0;
+            border-bottom: 1px solid #1e293b;
+            margin-bottom: 24px;
+        }
+        .header h1 { font-size: 24px; font-weight: 600; }
+        .nav { display: flex; gap: 24px; }
+        .nav a {
+            color: #94a3b8;
+            text-decoration: none;
+            font-size: 14px;
+            transition: color 0.2s;
+        }
+        .nav a:hover, .nav a.active { color: #f1f5f9; }
+        .back { color: #94a3b8; text-decoration: none; font-size: 14px; }
+        .back:hover { color: #f1f5f9; }
+        .stock-header {
+            display: flex;
+            align-items: center;
+            gap: 16px;
+            margin-bottom: 20px;
+        }
+        .stock-code { font-size: 20px; font-weight: 600; }
+        .stock-name { color: #9ca3af; }
+        .indicators-panel {
+            display: flex;
+            gap: 16px;
+            flex-wrap: wrap;
+            margin-bottom: 16px;
+            padding: 12px 16px;
+            background: #111827;
+            border-radius: 10px;
+            align-items: center;
+        }
+        .indicator-group { display: flex; align-items: center; gap: 4px; }
+        .indicator-group label {
+            font-size: 13px;
+            color: #94a3b8;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            gap: 4px;
+        }
+        .indicator-group input[type="checkbox"] {
+            accent-color: #3b82f6;
+            width: 16px;
+            height: 16px;
+        }
+        .dot {
+            width: 10px;
+            height: 10px;
+            border-radius: 50%;
+        }
+        .range-selector {
+            display: flex;
+            gap: 6px;
+            align-items: center;
+            margin-left: auto;
+        }
+        .range-selector label { font-size: 13px; color: #94a3b8; margin-right: 4px; }
+        .range-btn {
+            padding: 6px 12px;
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 6px;
+            color: #94a3b8;
+            font-size: 12px;
+            cursor: pointer;
+        }
+        .range-btn:hover { border-color: #3b82f6; color: #f1f5f9; }
+        .range-btn.active {
+            background: #3b82f6;
+            border-color: #3b82f6;
+            color: white;
+        }
+        .chart-container {
+            background: #111827;
+            border-radius: 12px;
+            overflow: hidden;
+            margin-bottom: 24px;
+        }
+        #mainChart { width: 100%; height: 400px; }
+        #volChart, #macdChart, #kdjChart, #rsiChart { width: 100%; height: 100px; }
+        .chart-hidden { height: 0 !important; overflow: hidden; }
+        .loading { text-align: center; padding: 40px; color: #9ca3af; }
+        .error { text-align: center; padding: 40px; color: #ef4444; }
+        .card {
+            background: #111827;
+            border-radius: 12px;
+            padding: 20px;
+        }
+        .card-title {
+            font-size: 12px;
+            color: #9ca3af;
+            margin-bottom: 16px;
+            text-transform: uppercase;
+            letter-spacing: 0.5px;
+        }
+        .observation-item {
+            padding: 12px 0;
+            border-bottom: 1px solid #1e293b;
+        }
+        .observation-item:last-child { border-bottom: none; }
+        .obs-header { display: flex; justify-content: space-between; margin-bottom: 6px; }
+        .obs-date { color: #9ca3af; font-size: 12px; }
+        .obs-content { color: #cbd5e1; font-size: 14px; line-height: 1.5; }
+        .obs-actions { display: flex; gap: 4px; }
+        .obs-actions button {
+            background: #1e293b;
+            border: none;
+            border-radius: 4px;
+            padding: 4px 8px;
+            color: #94a3b8;
+            font-size: 11px;
+            cursor: pointer;
+        }
+        .obs-actions button:hover { background: #334155; color: #f1f5f9; }
+        .empty { color: #9ca3af; text-align: center; padding: 20px 0; font-size: 14px; }
+        /* Modal */
+        .modal {
+            display: none;
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100%;
+            height: 100%;
+            background: rgba(0,0,0,0.7);
+            justify-content: center;
+            align-items: center;
+        }
+        .modal.active { display: flex; }
+        .modal-content {
+            background: #111827;
+            border-radius: 12px;
+            padding: 24px;
+            width: 500px;
+            max-width: 90%;
+        }
+        .modal-title { font-size: 18px; font-weight: 600; margin-bottom: 16px; }
+        .form-group { margin-bottom: 12px; }
+        .form-group label { display: block; font-size: 13px; color: #94a3b8; margin-bottom: 4px; }
+        .form-group input, .form-group textarea {
+            width: 100%;
+            background: #0a0f1a;
+            border: 1px solid #1e293b;
+            border-radius: 6px;
+            padding: 10px;
+            color: #f1f5f9;
+            font-size: 14px;
+        }
+        .form-group textarea { min-height: 80px; resize: vertical; }
+        .modal-actions { display: flex; gap: 8px; justify-content: flex-end; margin-top: 16px; }
+        .btn {
+            background: #3b82f6;
+            border: none;
+            border-radius: 6px;
+            padding: 8px 14px;
+            color: white;
+            font-size: 13px;
+            cursor: pointer;
+        }
+        .btn:hover { background: #2563eb; }
+        .btn-cancel { background: #334155; }
+        .btn-cancel:hover { background: #475569; }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <div class="header">
+            <div>
+                <h1 id="pageTitle">{{ stock_code }}</h1>
+                <span class="stock-name">个股详情</span>
+            </div>
+            <nav class="nav">
+                <a href="/">概览</a>
+                <a href="/learning">指标学习</a>
+                <a href="/portfolio">持仓管理</a>
+            </nav>
+        </div>
+
+        <div class="stock-header">
+            <span class="stock-code">{{ stock_code }}</span>
+            <button class="btn" onclick="openObsModal()">+ 添加观察</button>
+        </div>
+
+        <div class="indicators-panel">
+            <div class="indicator-group">
+                <label><input type="checkbox" id="indMA5" checked onchange="toggleIndicator('ma5')"> <span class="dot" style="background:#fff"></span> MA5</label>
+            </div>
+            <div class="indicator-group">
+                <label><input type="checkbox" id="indMA10" onchange="toggleIndicator('ma10')"> <span class="dot" style="background:#ffff00"></span> MA10</label>
+            </div>
+            <div class="indicator-group">
+                <label><input type="checkbox" id="indMA20" onchange="toggleIndicator('ma20')"> <span class="dot" style="background:#ff00ff"></span> MA20</label>
+            </div>
+            <div class="indicator-group">
+                <label><input type="checkbox" id="indMA60" onchange="toggleIndicator('ma60')"> <span class="dot" style="background:#00ffff"></span> MA60</label>
+            </div>
+            <div class="indicator-group">
+                <label><input type="checkbox" id="indVOL" checked onchange="toggleIndicator('vol')"> <span class="dot" style="background:#82e0ff"></span> VOL</label>
+            </div>
+            <div style="border-left: 1px solid #475569; padding-left: 16px;">
+                <div class="indicator-group">
+                    <label><input type="checkbox" id="indMACD" onchange="toggleIndicator('macd')"> <span class="dot" style="background:#82e0ff"></span> MACD</label>
+                </div>
+            </div>
+            <div class="indicator-group">
+                <label><input type="checkbox" id="indKDJ" onchange="toggleIndicator('kdj')"> <span class="dot" style="background:#ff82e0"></span> KDJ</label>
+            </div>
+            <div class="indicator-group">
+                <label><input type="checkbox" id="indRSI" onchange="toggleIndicator('rsi')"> <span class="dot" style="background:#82ff82"></span> RSI</label>
+            </div>
+            <div class="range-selector">
+                <label>显示:</label>
+                <button class="range-btn active" onclick="setRange('all')">3年</button>
+                <button class="range-btn" onclick="setRange('1y')">1年</button>
+                <button class="range-btn" onclick="setRange('6m')">半年</button>
+                <button class="range-btn" onclick="setRange('3m')">3月</button>
+            </div>
+        </div>
+
+        <div class="chart-container">
+            <div id="mainChart"></div>
+            <div id="volChart"></div>
+            <div id="macdChart" class="chart-hidden"></div>
+            <div id="kdjChart" class="chart-hidden"></div>
+            <div id="rsiChart" class="chart-hidden"></div>
+            <div id="loading" class="loading" style="display:none;">加载中...</div>
+            <div id="error" class="error" style="display:none;"></div>
+        </div>
+
+        <div class="card">
+            <div class="card-title">观察记录</div>
+            <div id="observationsList">
+                <div class="empty">暂无观察记录</div>
+            </div>
+        </div>
+    </div>
+
+    <!-- 观察 Modal -->
+    <div class="modal" id="obsModal">
+        <div class="modal-content">
+            <div class="modal-title" id="obsModalTitle">添加观察</div>
+            <input type="hidden" id="obsId">
+            <div class="form-group">
+                <label>日期</label>
+                <input type="date" id="obsDate">
+            </div>
+            <div class="form-group">
+                <label>观察内容</label>
+                <textarea id="obsContent" placeholder="今日观察..."></textarea>
+            </div>
+            <div class="form-group">
+                <label>标签</label>
+                <input type="text" id="obsTags" placeholder="可选，如: 突破, 缩量">
+            </div>
+            <div class="modal-actions">
+                <button class="btn btn-cancel" onclick="closeObsModal()">取消</button>
+                <button class="btn" onclick="saveObservation()">保存</button>
+            </div>
+        </div>
+    </div>
+
+    <script>
+        const STOCK_CODE = "{{ stock_code }}";
+        let mainChart, candleSeries;
+        let ma5Series, ma10Series, ma20Series, ma60Series;
+        let volChart, volSeries;
+        let macdChart, macdSeries, kdjChart, kdjSeries, rsiChart, rsiSeries;
+        let chartData = [];
+        let closes = [];
+        let displayRange = 'all';
+
+        const indicators = {
+            ma5: true, ma10: false, ma20: false, ma60: false,
+            vol: true, macd: false, kdj: false, rsi: false
+        };
+
+        function setRange(range) {
+            displayRange = range;
+            document.querySelectorAll('.range-btn').forEach(btn => btn.classList.remove('active'));
+            event.target.classList.add('active');
+            updateCharts();
+            setTimeRange();
+        }
+
+        async function loadKline() {
+            showLoading(true);
+            try {
+                const resp = await fetch(`/api/kline?code=${STOCK_CODE}&period=d&adjust=2`);
+                const result = await resp.json();
+                if (result.error || !result.data || result.data.length === 0) {
+                    throw new Error(result.error || '无数据');
+                }
+                chartData = result.data.map(d => ({
+                    ...d,
+                    time: d.time.substring(0,4) + '-' + d.time.substring(4,6) + '-' + d.time.substring(6,8)
+                }));
+                closes = chartData.map(d => d.close);
+                if (!mainChart) initCharts();
+                else updateCharts();
+            } catch (e) {
+                document.getElementById('error').textContent = '加载失败: ' + e.message;
+                document.getElementById('error').style.display = 'block';
+            } finally {
+                showLoading(false);
+            }
+        }
+
+        function initCharts() {
+            mainChart = LightweightCharts.createChart(document.getElementById('mainChart'), {
+                width: document.getElementById('mainChart').offsetWidth,
+                height: 400,
+                layout: { background: { type: 'solid', color: '#1e293b' }, textColor: '#94a3b8' },
+                grid: { vertLines: { color: '#334155' }, horzLines: { color: '#334155' } },
+                crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
+                rightPriceScale: { borderColor: '#475569' },
+                timeScale: { borderColor: '#475569', timeVisible: true, rightOffset: 0, leftOffset: 0, barSpacing: 6, fixLeftEdge: true, fixRightEdge: true },
+            });
+
+            candleSeries = mainChart.addCandlestickSeries({
+                upColor: '#22c55e', downColor: '#ef4444',
+                borderUpColor: '#22c55e', borderDownColor: '#ef4444',
+                wickUpColor: '#22c55e', wickDownColor: '#ef4444',
+            });
+
+            ma5Series = mainChart.addLineSeries({ color: '#ffffff', lineWidth: 1, title: 'MA5' });
+            ma10Series = mainChart.addLineSeries({ color: '#ffff00', lineWidth: 1, title: 'MA10' });
+            ma20Series = mainChart.addLineSeries({ color: '#ff00ff', lineWidth: 1, title: 'MA20' });
+            ma60Series = mainChart.addLineSeries({ color: '#00ffff', lineWidth: 1, title: 'MA60' });
+
+            // VOL 成交量副图
+            volChart = LightweightCharts.createChart(document.getElementById('volChart'), {
+                width: document.getElementById('volChart').offsetWidth,
+                height: 100,
+                layout: { background: { type: 'solid', color: '#1e293b' }, textColor: '#94a3b8' },
+                grid: { vertLines: { color: '#334155' }, horzLines: { color: '#334155' } },
+                rightPriceScale: { borderColor: '#475569' },
+                timeScale: { visible: false, handleScroll: false, handleScale: false },
+                crosshair: { mode: LightweightCharts.CrosshairMode.Normal },
+            });
+            volSeries = volChart.addHistogramSeries({ color: '#82e0ff' });
+
+            // MACD
+            macdChart = LightweightCharts.createChart(document.getElementById('macdChart'), {
+                width: document.getElementById('macdChart').offsetWidth,
+                height: 100,
+                layout: { background: { type: 'solid', color: '#1e293b' }, textColor: '#94a3b8' },
+                grid: { vertLines: { color: '#334155' }, horzLines: { color: '#334155' } },
+                rightPriceScale: { borderColor: '#475569' },
+                timeScale: { visible: false, handleScroll: false, handleScale: false },
+            });
+            macdSeries = macdChart.addHistogramSeries({ color: '#82e0ff' });
+
+            // KDJ
+            kdjChart = LightweightCharts.createChart(document.getElementById('kdjChart'), {
+                width: document.getElementById('kdjChart').offsetWidth,
+                height: 100,
+                layout: { background: { type: 'solid', color: '#1e293b' }, textColor: '#94a3b8' },
+                grid: { vertLines: { color: '#334155' }, horzLines: { color: '#334155' } },
+                rightPriceScale: { borderColor: '#475569' },
+                timeScale: { visible: false, handleScroll: false, handleScale: false },
+            });
+            kdjSeries = kdjChart.addLineSeries({ color: '#ff82e0', lineWidth: 1 });
+
+            // RSI
+            rsiChart = LightweightCharts.createChart(document.getElementById('rsiChart'), {
+                width: document.getElementById('rsiChart').offsetWidth,
+                height: 100,
+                layout: { background: { type: 'solid', color: '#1e293b' }, textColor: '#94a3b8' },
+                grid: { vertLines: { color: '#334155' }, horzLines: { color: '#334155' } },
+                rightPriceScale: { borderColor: '#475569' },
+                timeScale: { visible: false, handleScroll: false, handleScale: false },
+            });
+            rsiSeries = rsiChart.addLineSeries({ color: '#82ff82', lineWidth: 1 });
+
+            // 同步副图时间范围
+            mainChart.timeScale().subscribeVisibleTimeRangeChange(() => syncCharts());
+            setInterval(syncCharts, 200);
+            window.addEventListener('resize', () => {
+                if (mainChart) mainChart.applyOptions({ width: document.getElementById('mainChart').offsetWidth });
+            });
+
+            updateCharts();
+        }
+
+        function syncCharts() {
+            if (!mainChart) return;
+            const range = mainChart.timeScale().getVisibleRange();
+            if (!range || !range.from || !range.to) return;
+
+            try {
+                if (indicators.vol) volChart.timeScale().setVisibleRange(range);
+            } catch (e) { /* vol chart not ready */ }
+            try {
+                if (indicators.macd) macdChart.timeScale().setVisibleRange(range);
+            } catch (e) { /* macd chart not ready */ }
+            try {
+                if (indicators.kdj) kdjChart.timeScale().setVisibleRange(range);
+            } catch (e) { /* kdj chart not ready */ }
+            try {
+                if (indicators.rsi) rsiChart.timeScale().setVisibleRange(range);
+            } catch (e) { /* rsi chart not ready */ }
+        }
+
+        function updateCharts() {
+            const filteredData = getFilteredData();
+            candleSeries.setData(filteredData.map(d => ({ time: d.time, open: d.open, high: d.high, low: d.low, close: d.close })));
+
+            ma5Series.setData(indicators.ma5 ? calcMA(closes, 5) : []);
+            ma10Series.setData(indicators.ma10 ? calcMA(closes, 10) : []);
+            ma20Series.setData(indicators.ma20 ? calcMA(closes, 20) : []);
+            ma60Series.setData(indicators.ma60 ? calcMA(closes, 60) : []);
+
+            // VOL 成交量 - 全部转换为万单位
+            document.getElementById('volChart').style.display = indicators.vol ? 'block' : 'none';
+            if (indicators.vol) {
+                const volData = filteredData.map(d => ({
+                    time: d.time,
+                    value: d.volume / 10000,  // 全部转成万
+                    color: d.close >= d.open ? '#22c55e50' : '#ef444450'
+                }));
+                volSeries.setData(volData);
+            } else {
+                volSeries.setData([]);
+            }
+
+            // MACD
+            const macdDiv = document.getElementById('macdChart');
+            if (indicators.macd) {
+                macdDiv.classList.remove('chart-hidden');
+                macdDiv.style.display = 'block';
+                const macdData = calcMACD(closes);
+                const bars = [];
+                macdData.forEach((d, i) => {
+                    if (d && chartData[i]) bars.push({ time: chartData[i].time, value: d.macd, color: d.macd >= 0 ? '#22c55e' : '#ef4444' });
+                });
+                macdSeries.setData(bars);
+            } else {
+                macdDiv.classList.add('chart-hidden');
+                macdDiv.style.display = 'none';
+                macdSeries.setData([]);
+            }
+
+            // KDJ
+            const kdjDiv = document.getElementById('kdjChart');
+            if (indicators.kdj) {
+                kdjDiv.classList.remove('chart-hidden');
+                kdjDiv.style.display = 'block';
+                const kdjData = calcKDJ(closes);
+                const kData = [];
+                kdjData.forEach((d, i) => { if (d && chartData[i]) kData.push({ time: chartData[i].time, value: d.k }); });
+                kdjSeries.setData(kData);
+            } else {
+                kdjDiv.classList.add('chart-hidden');
+                kdjDiv.style.display = 'none';
+                kdjSeries.setData([]);
+            }
+
+            // RSI
+            const rsiDiv = document.getElementById('rsiChart');
+            if (indicators.rsi) {
+                rsiDiv.classList.remove('chart-hidden');
+                rsiDiv.style.display = 'block';
+                const rsiData = calcRSI(closes);
+                const rsiFormatted = [];
+                rsiData.forEach((v, i) => { if (v !== null && chartData[i]) rsiFormatted.push({ time: chartData[i].time, value: v }); });
+                rsiSeries.setData(rsiFormatted);
+            } else {
+                rsiDiv.classList.add('chart-hidden');
+                rsiDiv.style.display = 'none';
+                rsiSeries.setData([]);
+            }
+
+            mainChart.timeScale().fitContent();
+            setTimeRange();
+        }
+
+        function setTimeRange() {
+            const filteredData = getFilteredData();
+            if (filteredData.length === 0) return;
+            const start = new Date(filteredData[0].time).getTime() / 1000;
+            const end = new Date(filteredData[filteredData.length - 1].time).getTime() / 1000;
+            mainChart.timeScale().setVisibleRange({ from: start, to: end });
+            mainChart.timeScale().applyOptions({ rightMargin: 0 });
+        }
+
+        function getFilteredData() {
+            if (displayRange === 'all') return chartData;
+            const now = new Date();
+            let cutoffDate;
+            switch (displayRange) {
+                case '1y': cutoffDate = new Date(now.getFullYear() - 1, now.getMonth(), now.getDate()); break;
+                case '6m': cutoffDate = new Date(now.getFullYear(), now.getMonth() - 6, now.getDate()); break;
+                case '3m': cutoffDate = new Date(now.getFullYear(), now.getMonth() - 3, now.getDate()); break;
+                default: return chartData;
+            }
+            return chartData.filter(d => new Date(d.time) >= cutoffDate);
+        }
+
+        function toggleIndicator(name) {
+            indicators[name] = !indicators[name];
+            document.getElementById('ind' + name.toUpperCase()).checked = indicators[name];
+            if (mainChart) updateCharts();
+        }
+
+        function showLoading(show) {
+            document.getElementById('loading').style.display = show ? 'block' : 'none';
+        }
+
+        // 指标计算 (复用klinetool)
+        function calcMA(prices, period) {
+            const result = [];
+            for (let i = 0; i < prices.length; i++) {
+                if (i < period - 1) continue;
+                const sum = prices.slice(i - period + 1, i + 1).reduce((a, b) => a + b, 0);
+                result.push({ time: chartData[i].time, value: sum / period });
+            }
+            return result;
+        }
+
+        function calcEMA(prices, period) {
+            const k = 2 / (period + 1);
+            const result = [];
+            let ema = null;
+            for (let i = 0; i < prices.length; i++) {
+                if (i < period - 1) { result.push(null); continue; }
+                if (i === period - 1) { ema = prices.slice(0, period).reduce((a, b) => a + b, 0) / period; }
+                else { ema = prices[i] * k + ema * (1 - k); }
+                result.push(ema);
+            }
+            return result;
+        }
+
+        function calcMACD(prices, fast = 12, slow = 26, signal = 9) {
+            const fastEMA = calcEMA(prices, fast);
+            const slowEMA = calcEMA(prices, slow);
+            const dif = fastEMA.map((f, i) => f && slowEMA[i] ? f - slowEMA[i] : null);
+            const dea = calcEMA(dif.filter(d => d !== null), signal);
+            const result = [];
+            let deaIdx = 0;
+            for (let i = 0; i < dif.length; i++) {
+                if (dif[i] === null) { result.push(null); continue; }
+                const d = dea[deaIdx++] || 0;
+                result.push({ dif: dif[i], dea: d, macd: (dif[i] - d) * 2 });
+            }
+            return result;
+        }
+
+        function calcKDJ(prices, period = 9) {
+            const result = [];
+            let k = 50, d = 50;
+            for (let i = 0; i < prices.length; i++) {
+                if (i < period - 1) { result.push(null); continue; }
+                let high = -Infinity, low = Infinity;
+                for (let j = 0; j < period; j++) { high = Math.max(high, prices[i - j]); low = Math.min(low, prices[i - j]); }
+                const rsv = high === low ? 50 : (prices[i] - low) / (high - low) * 100;
+                k = (2 * k + rsv) / 3;
+                d = (2 * d + k) / 3;
+                result.push({ k, d, j: 3 * k - 2 * d });
+            }
+            return result;
+        }
+
+        function calcRSI(prices, period = 14) {
+            const result = [];
+            let gains = [], losses = [];
+            for (let i = 0; i < prices.length; i++) {
+                if (i === 0) { result.push(null); continue; }
+                const change = prices[i] - prices[i - 1];
+                gains.push(change > 0 ? change : 0);
+                losses.push(change < 0 ? -change : 0);
+                if (i < period) { result.push(null); continue; }
+                const avgGain = gains.slice(-period).reduce((a, b) => a + b, 0) / period;
+                const avgLoss = losses.slice(-period).reduce((a, b) => a + b, 0) / period;
+                const rs = avgLoss === 0 ? 100 : avgGain / avgLoss;
+                result.push(100 - 100 / (1 + rs));
+            }
+            return result;
+        }
+
+        // 观察记录
+        let observations = {{ observations|tojson }};
+        renderObservations();
+
+        function renderObservations() {
+            const container = document.getElementById('observationsList');
+            if (observations.length === 0) {
+                container.innerHTML = '<div class="empty">暂无观察记录</div>';
+                return;
+            }
+            container.innerHTML = observations.map(o => `
+                <div class="observation-item">
+                    <div class="obs-header">
+                        <span class="obs-date">${o.observation_date}</span>
+                        <div class="obs-actions">
+                            <button onclick="editObservation(${o.id})">编辑</button>
+                            <button onclick="deleteObservation(${o.id})">删除</button>
+                        </div>
+                    </div>
+                    <div class="obs-content">${escapeHtml(o.content || '')}</div>
+                </div>
+            `).join('');
+        }
+
+        function openObsModal(id = null) {
+            document.getElementById('obsModal').classList.add('active');
+            document.getElementById('obsModalTitle').textContent = id ? '编辑观察' : '添加观察';
+            document.getElementById('obsDate').value = new Date().toISOString().split('T')[0];
+            if (id) {
+                const o = observations.find(x => x.id === id);
+                document.getElementById('obsId').value = id;
+                document.getElementById('obsDate').value = o.observation_date;
+                document.getElementById('obsContent').value = o.content || '';
+                document.getElementById('obsTags').value = o.tags || '';
+            } else {
+                document.getElementById('obsId').value = '';
+                document.getElementById('obsContent').value = '';
+                document.getElementById('obsTags').value = '';
+            }
+        }
+
+        function closeObsModal() {
+            document.getElementById('obsModal').classList.remove('active');
+        }
+
+        function editObservation(id) { openObsModal(id); }
+
+        async function saveObservation() {
+            const id = document.getElementById('obsId').value;
+            const data = {
+                stock_code: STOCK_CODE,
+                observation_date: document.getElementById('obsDate').value,
+                content: document.getElementById('obsContent').value,
+                tags: document.getElementById('obsTags').value
+            };
+            if (!data.content) { alert('请输入观察内容'); return; }
+
+            if (id) {
+                await fetch(`/api/observations/${id}`, { method: 'PUT', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data) });
+            } else {
+                await fetch('/api/observations', { method: 'POST', headers: {'Content-Type': 'application/json'}, body: JSON.stringify(data) });
+            }
+            closeObsModal();
+            const resp = await fetch(`/api/observations?stock_code=${STOCK_CODE}&limit=30`);
+            observations = (await resp.json()).data || [];
+            renderObservations();
+        }
+
+        async function deleteObservation(id) {
+            if (!confirm('确定删除?')) return;
+            await fetch(`/api/observations/${id}`, { method: 'DELETE' });
+            const resp = await fetch(`/api/observations?stock_code=${STOCK_CODE}&limit=30`);
+            observations = (await resp.json()).data || [];
+            renderObservations();
+        }
+
+        function escapeHtml(text) {
+            const div = document.createElement('div');
+            div.textContent = text;
+            return div.innerHTML;
+        }
+
+        loadKline();
+    </script>
+</body>
+</html>
